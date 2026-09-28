@@ -77,9 +77,9 @@ Next, I'll look at switching the probe to build its client from `settings.redis_
 
 **Run history**
 
-1. Full run 1 (00:55 EDT): 17/20, below the bar. clear-accept 5/8; every
+1. Full run 1 (00:55 EDT): 17/20, is below the bar. clear-accept 5/8; every
    reject category matched. All three misses were false rejects:
-   pkg-09 and pkg-10 (honest cannot-reproduce reports) failed "Behavior
+   pkg-09 and pkg-10 (honest cannot-reproduce reports) so failed "Behavior
    matches the issue", and pkg-03 got `unclear` on "Conventions and
    disclosure" because the grader couldn't verify human authorship.
 2. Revision A: "Behavior matches" now splits on the stated outcome (a
@@ -94,7 +94,7 @@ Next, I'll look at switching the probe to build its client from `settings.redis_
    backed up, and pkg-05 failed "Steps followable" for describing env.yml
    instead of pasting it. These packages passed in run 1, so the wording
    was ambiguous enough that the grader read it differently run to run.
-4. Revision B: the claim check allows stating an outcome that the
+4. Revision B: the claim check allows stating an the outcome that the
    package's own report shows (only a claim-only draft must promise).
    The steps check accepts an input described precisely enough to
    trigger the behavior. Canaries: pkg-19 and pkg-13 (boilerplate or
