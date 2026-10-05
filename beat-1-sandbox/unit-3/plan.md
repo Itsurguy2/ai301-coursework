@@ -139,12 +139,12 @@ two tests. Two things in my "Risks and unknowns" section are now settled:
   there was no marker to remove, and the new `tests/unit/test_health.py`
   stands on its own.
 
-One thing I could not do as written: my test plan said to re-run the
-`curl /health` repro against the real Docker stack. Docker Desktop was
-not running when I built, so I did not do that re-run. The unit test
-runs the real `health_check` function and the real Redis probe line,
-with only the Redis client faked, and its "before" failure shows the same
-`'Settings' object has no attribute 'redis_host'` error as my repro. I
-still have not tried a non-default `REDIS_URL`. My posted plan comment
-said I would also re-run the `curl` on the real stack, so if that re-run
-stays undone I need to say so on the issue.
+My test plan also said to re-run the `curl /health` repro on the real
+Docker stack. Docker Desktop was not running during the build, so I did
+that re-run afterward, on the same branch (`7426e83`). Redis answered
+`PONG`, and `/health` returned `"redis":"healthy"` with
+`redis_health_check_passed` in the log and no `redis_health_check_failed`
+line. It still returned HTTP 503 because the Postgres probe fails with the
+`text('SELECT 1')` error from #61, which is what the plan said would
+happen, so nothing deviated there. The only thing I have not tried is a
+non-default `REDIS_URL`.

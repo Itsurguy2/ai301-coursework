@@ -70,7 +70,28 @@ $ mypy api/routes/health.py tests/unit/test_health.py     (attr-defined removed 
 Success: no issues found in 2 source files
 ```
 
-This is a check that runs through the real `health_check` function and the real Redis probe line, with only the Redis client faked. It shows the same `'Settings' object has no attribute 'redis_host'` error as my unit 2 repro. I did not re-run the `curl http://localhost:8000/health` repro against the real Docker stack, because Docker Desktop was not running when I built (see Deviations in `plan.md`).
+The unit test runs the real `health_check` function and the real Redis probe line, with only the Redis client faked, and its "before" failure shows the same `'Settings' object has no attribute 'redis_host'` error as my unit 2 repro.
+
+Real-stack repro, re-run on the fixed branch (`docker compose up -d`, API started with `uvicorn api.main:app`). My unit 2 repro comment is the before for this one (`"redis":"unhealthy"` and `redis_health_check_failed ... 'redis_host'`):
+
+```
+$ docker compose exec redis redis-cli ping
+PONG
+$ curl -s -o /tmp/health.json -w "HTTP %{http_code}\n" http://127.0.0.1:8000/health
+HTTP 503
+$ cat /tmp/health.json
+{"detail":{"status":"unhealthy","dependencies":{"postgres":"unhealthy","redis":"healthy","vector_db":"healthy"},"safety_events_last_hour":0,"timestamp":"2026-10-05T04:09:29.671137"}}
+```
+
+API log for that request:
+
+```
+[error    ] postgres_health_check_failed   error="Textual SQL expression 'SELECT 1' should be explicitly declared as text('SELECT 1')"
+[debug    ] redis_health_check_passed
+[debug    ] vector_db_health_check_passed
+```
+
+`redis` is now `healthy` and there is no `redis_health_check_failed` line. The overall status is still 503 because of the Postgres probe (#61), which this change does not touch.
 
 ---
 
