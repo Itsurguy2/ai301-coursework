@@ -11,7 +11,7 @@ files and no evidence uploads are part of Assignment 5.
 **Student:** Jesse Rosenthal
 **GitHub Username:** Itsurguy2
 **Issue:** https://github.com/LawnchairLauncher/lawnchair/issues/5490
-**Pull Request:** [GitHub PR link, once opened]
+**Pull Request:** https://github.com/LawnchairLauncher/lawnchair/pull/7477
 
 One repository, built across units 5 to 8, telling the whole story of your real
 contribution. Fill it as you work, not at the end — the sections below ask for evidence that
@@ -83,10 +83,18 @@ around it, `16-dev`, and the commit format. I wrote it from the code I'd
 already traced for the repro instead of running a separate orientation
 agent, and kept it out of git with `.git/info/exclude`.
 
-**Unit 7: [one line on the tool work]**
+**Unit 7: Installed the ship-gate with a three-check manifest from Lawnchair's CI, and it passed my branch before the PR opened**
 
-[2-4 sentences: the ship-gate and your gate manifest. What it produced
-on your real branch, what fought you, what changed because of it.]
+My manifest runs the PR checks from `.github/workflows/ci.yml`: `spotlessCheck` and
+the GitHub and Play debug builds. The nightly release build is in the second table,
+because it needs signing secrets. On Windows the ship-gate runs each row through
+`cmd.exe`, which wouldn't find `gradlew.bat` without `.\`, and the hook's environment
+predated my JDK install, so every row now sets `JAVA_HOME` itself. I tested each row
+that way on unchanged `16-dev` before writing code. The gate passed my branch on the
+first run: three repo checks plus all eight pr-precheck checks. Then the script crashed
+while printing its summary (Windows' `cp1252` console can't print `→`). I checked
+`gate-log.md` before trusting the pass, saw it was recorded with fingerprints before the
+crash, and the hook honored it when the PR opened four minutes later.
 
 **Unit 8: [one line on the tool work]**
 
@@ -415,65 +423,148 @@ Deviations: none yet.
 
 ## Testing Strategy
 
-[What observable checks prove the fix: your reproduction steps re-run
-against the built change (before and after), and the repo's own test
-suite or checks with the outcome shown. "Tests pass" with nothing
-observable named is not a strategy.]
+Lawnchair has no Gradle unit-test source set for this code (its `tests/` folder is
+AOSP's Soong-only suite), so I couldn't add a unit test. I tested in two ways:
+
+1. **The reproduction, re-run before and after.** Same emulator (Pixel 7, Android 16),
+   same query (`weather` in the app drawer), Google as the provider. For the branch build
+   I cleared the app's data first, so every setting started at its default.
+
+   | Setting | Before (`ff03721`) | After (`e5d0aa0`) |
+   |---|---|---|
+   | Defaults | 3 suggestions + "Search on Google" | the same (no change for existing users) |
+   | Web suggestions on, new Search suggestions off | not possible | "Search on Google" only, no suggestion rows |
+   | Web suggestions off | nothing from the web | nothing from the web (unchanged) |
+
+   The middle row is the check that proves the fix: that state couldn't exist before
+   it. The other two rows check that I didn't change anything else.
+
+2. **The repo's own CI checks** from `.github/workflows/ci.yml`, run on the branch the
+   way my ship-gate runs them: `spotlessCheck` (BUILD SUCCESSFUL in 8s),
+   `assembleLawnWithQuickstepGithubDebug` (BUILD SUCCESSFUL in 6m 57s), and
+   `assembleLawnWithQuickstepPlayDebug` (BUILD SUCCESSFUL in 7m 37s). All three also
+   passed on unchanged `16-dev` before I started. I didn't run the nightly release
+   build, because it needs the project's signing secrets. CI will run it on the PR.
+
+Not tested: network traffic (that the request is skipped comes from reading the code),
+providers other than Google, and physical phones.
 
 **Toolkit**
 
-- Tool:
-- What it produced:
-- Difficulties:
-- What changed:
+- Tool: Claude Code driving the Android emulator through `adb` (install, settings
+  taps, typing, screenshots, `logcat`), plus a Python runner that runs each manifest
+  check through `cmd.exe` exactly the way the ship-gate does
+- What it produced: six "after" screenshots matching six "before" ones, the three
+  check results above, and `test_evidence.md`
+- Difficulties: the first launch after clearing app data froze ("isn't responding,
+  Input dispatching timed out, Application does not have a focused window"). I had to
+  check the log before trusting the fix: the freeze happened during startup, before any
+  search, and never came back (0 ANRs after it). Scripted swipes also failed to open the
+  drawer about half the time, and fresh data brings back Lawnchair's onboarding screens,
+  which my taps kept landing on.
+- What changed: I check the screen after every step now instead of chaining taps
+  blind, and I retry the drawer swipe until the UI dump shows it's open. I recorded the
+  freeze in my test evidence and said I didn't test a cold start on the unmodified build,
+  instead of leaving it out.
 
 ---
 
 ## Implementation Notes
 
-[A running log, added to as you work. Date each entry. What you
-built, decisions you made when you made them, wrong turns included.]
+**2026-11-01 (setup)**
 
-**[Date]**
+Installed the ship-gate. Two Windows problems would have broken every manifest row:
+the ship-gate runs rows through `cmd.exe`, which here won't run `gradlew.bat` without
+`.\`, and the hook's environment predates my JDK install, so `JAVA_HOME` is missing. Each
+row now sets `JAVA_HOME` itself and calls `.\gradlew.bat`. All three rows passed on
+unchanged `16-dev` before I touched any code. The nightly release build is in the
+second table, because it needs signing secrets.
 
-[Entry]
+**2026-11-01 (plan)**
 
-**[Date]**
+The maintainers haven't answered my claim's question yet. I planned against the issue's
+own wording: suggestions off, web search kept, default on so nothing changes. Per
+Lawnchair's preferences doc, the new key goes in `PreferenceManager2`, not the legacy
+`PreferenceManager`. I left `StartpageEU.kt` alone, even though it reads the old switch,
+because it controls the dock bar's behavior, not suggestions. plan-check accepted the
+plan twice. The second time came after I stopped claiming the network call is skipped
+without a way to observe it.
 
-[Entry]
+**2026-11-01 (build)**
+
+Branch `feat/5490-web-search-suggestions-toggle`, two commits:
+`b6ae3ea feat(search): skip web search suggestions when they are turned off` (the
+preference and the check in `WebSuggestionProvider.search()`) and
+`e5d0aa0 feat(search): add Search suggestions switch to Web suggestions settings` (the
+`SwitchPreference` and two English strings). 16 added lines in the four files the plan
+named, nothing else. I put the new check in its own `if` instead of adding it to the
+existing condition, so the diff shows the new gate on its own lines. No deviations
+from the plan.
+
+**2026-11-01 (test)**
+
+The branch build's first launch after clearing data froze during startup. The log put it
+before any search and it didn't come back, so I recorded it rather than treating it as
+my bug or hiding it. The rest of the test matched the plan exactly. Details are in
+Testing Strategy.
 
 **Toolkit**
 
-- Tool:
-- What it produced:
-- Difficulties:
-- What changed:
+- Tool: Claude Code in my Lawnchair clone, with `CLAUDE.local.md` loaded at the start
+  of every session (build commands, the `local.properties` path fix, emulator commands,
+  where the search code lives)
+- What it produced: the two commits, and the four dated entries above
+- Difficulties: a Gradle run I'd started in the background was still compiling when I
+  began editing, so I couldn't count its result as a clean "before" for the Play build.
+  The memory file also didn't yet know that `cmd.exe` needs `.\`.
+- What changed: I waited for that run to finish and re-ran all three checks on the
+  branch before committing. The manifest's command form is now the working one I'd copy
+  next time.
 
 ---
 
 ## Pull Request
 
-**PR Link:** [GitHub PR URL when opened]
+**PR Link:** https://github.com/LawnchairLauncher/lawnchair/pull/7477
 
-**PR Description:** [what the PR says; much of the content above
-adapts into it]
+**PR Description:** "feat(search): add a switch to turn off web search suggestions",
+into `16-dev`. It adds a "Search suggestions" switch on the Web suggestions settings page.
+With it off, the drawer search stops showing the provider's autocomplete suggestions but
+keeps "Search on Google". It's on by default, so nothing changes for existing users. It
+lists the four files and 16 added lines, and explains why one shared boolean was the
+cause and why the new key lives in `PreferenceManager2`. It repeats my open question to
+the maintainers. Testing has a before/after table for the three settings states, the
+three CI checks with their results, what I didn't test, and an "AI use" paragraph.
+`Fixes #5490`, with the PR template's Type of change set to New feature.
 
 **Maintainer Feedback:**
 
-- [Date]: [feedback received, or "none yet"; silence is a normal
-  state and costs you nothing]
-- [Date]: [how you addressed it]
+- 2026-11-02: none yet. CI hasn't run, which is normal for a first-time contributor until
+  a maintainer approves the workflows.
 
-**Status:** [Awaiting review / Iterating / Merged / Closed. The
-status is a fact you record, never a grade: the PR is graded as
-opened.]
+**Status:** Awaiting review
 
 **Toolkit**
 
-- Tool:
-- What it produced:
-- Difficulties:
-- What changed:
+- Tool: the ship-gate. I ran it by hand first
+  (`python3 ~/.claude/ship-gate/check_gate.py --branch --base 16-dev --title "..." --body-file pr_draft.md`),
+  then opened the PR through Claude Code so the hook checked it.
+- What it produced: `ship-gate: PASS`. The three manifest checks were ok, and pr-precheck
+  passed all eight checks (diff-matches-plan, description-matches-diff,
+  repro-rerun-before-after, repo-checks-run, diff-free-of-debris, repo-asks-met,
+  ai-disclosure, thread-direction-engaged). The hook then logged "PASS (honored the
+  manual pass at 23:55)" and the voice guard logged a pass on the description.
+- Difficulties: the script crashed after the PASS line with a `UnicodeEncodeError`
+  printing the summary on Windows. My first try at opening the PR through a
+  non-interactive `claude` session didn't run the command at all: the permission rule I
+  passed didn't match, and the session tried to edit `pr_draft.md` instead (blocked). My
+  default branch name in the gate also had to be `--base 16-dev`, since Lawnchair has no
+  `main`.
+- What changed: I confirmed the pass in `gate-log.md` instead of re-running. I re-ran the
+  PR command with plain Bash permission and an explicit "don't edit files", then checked
+  on GitHub that the PR went to LawnchairLauncher/lawnchair, not my fork, with the four
+  files and the AI-use paragraph. Next time I'd set `PYTHONIOENCODING=utf-8` before running
+  the gate.
 
 ---
 
