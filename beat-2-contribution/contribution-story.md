@@ -184,48 +184,64 @@ Claim comment: https://github.com/LawnchairLauncher/lawnchair/issues/5490#issuec
 
 **Environment Setup**
 
-Windows 11 Home (10.0.26200), Git Bash, git, and the GitHub CLI. Project:
-LawnchairLauncher/lawnchair on `16-dev`, the branch the developer docs
-say PRs must target, pinned to commit
+Host: Windows 11 Home (10.0.26200) with Git Bash, git, and the GitHub
+CLI. Project: LawnchairLauncher/lawnchair on `16-dev`, the branch the
+developer docs say PRs must target, at commit
 `ff037218d4769e362d77b3d7a8db01d63b4eead4` (2026-11-02). I forked it to
-Itsurguy2/lawnchair and cloned with `git clone --recursive` (1.4 GB,
-including the `platform_frameworks_libs_systemui` submodule), with
-`upstream` set to the Lawnchair repo. To build, the docs ask for Android
-Studio Preview and the `lawnWithQuickstepGithubDebug` variant, and CI
-uses JDK 21. The challenge: this machine has no Android SDK, JDK, or
-device yet, and the docs recommend macOS or Linux. So this first
-reproduction reads the code at a pinned commit, and the on-device check
-is still to do (see My findings).
+Itsurguy2/lawnchair and cloned with `git clone --recursive` (1.4 GB with
+the `platform_frameworks_libs_systemui` submodule), with `upstream`
+pointing at Lawnchair. Toolchain: Eclipse Temurin JDK 21.0.13 (CI uses
+21), Android Studio Canary, and an Android SDK with platform
+`android-37.2` and build-tools `37.0.0`, the versions `build.gradle` asks
+for. `./gradlew assembleLawnWithQuickstepGithubDebug` built
+`Lawnchair.16.Dev.(ff03721).github.debug.apk` in 12m 21s. I ran it on an
+Android 16 emulator (Pixel 7 profile, Google APIs x86_64 image) with
+Lawnchair set as the home app and every setting at its default.
+
+Challenges: the machine started with no JDK or Android SDK, and the docs
+recommend macOS or Linux. Three things fought me on Windows. First,
+`sdkmanager.bat` splits package names at `;`, so I had to use the `/`
+form (`platforms/android-37.2`). Second, `avdmanager` only accepts the
+`;` form, so I ran it through `cmd` with the quotes kept. Third, my first
+build failed with "The filename, directory name, or volume label syntax
+is incorrect" because I'd written `local.properties` with single
+backslashes, which the properties format reads as escapes. I rewrote
+`sdk.dir` with forward slashes and it built. On the emulator, slow `adb`
+swipes didn't open the app drawer, but a fast fling did.
 
 **Steps to Reproduce**
 
-1. `git clone --depth 1 -b 16-dev https://github.com/LawnchairLauncher/lawnchair.git && cd lawnchair`,
-   then `git checkout ff037218d4769e362d77b3d7a8db01d63b4eead4` to pin it.
-2. Find the string for the "Web suggestions" switch (Settings → Search bar → App drawer):
-   `grep -n 'search_pref_result_web_title' lawnchair/res/values/strings.xml`
-3. Find every place that reads the preference behind that switch:
-   `grep -rn 'searchResultStartPageSuggestion' lawnchair/src --include=*.kt`
-4. Check the sliders on the Web suggestions page:
-   `grep -n 'valueRange' lawnchair/src/app/lawnchair/ui/preferences/components/search/SearchProviderPreference.kt`
-5. Observed result: one boolean, `pref_searchResultStartPageSuggestion`,
-   controls both the "search the web for <query>" action
-   (`LawnchairLocalSearchAlgorithm.kt:151`) and the autocomplete
-   suggestions fetched from the provider (`WebSuggestionProvider.kt:28`).
-   Both UI switches write that same boolean, and the suggestion-count
-   slider only goes from 2 to 10. So there's no way to keep web search
-   but turn off its suggestions, which is the missing feature #5490 asks for.
+1. Build and install the pinned commit: `./gradlew assembleLawnWithQuickstepGithubDebug`,
+   then `adb install -r` the APK, and set Lawnchair as the home app.
+2. Swipe up to open the app drawer, tap its search bar, and type `weather`.
+   A "From the web" section shows three autocomplete suggestions from
+   Google, with a "Search on Google" action below them.
+3. Tap the gear, then Search bar → App drawer → "Web suggestions" (on,
+   "Via Google"), and tap the label to open its page. It has one
+   "Web suggestions" switch, "Maximum number of suggestions" (3), a
+   delay slider (1000 ms), and the provider. There's no separate control
+   for suggestions.
+4. Drag "Maximum number of suggestions" all the way left. It stops at 2.
+5. Turn the "Web suggestions" switch off, go home, open the drawer, and
+   search `weather` again.
+6. Observed result: nothing from the web. The autocomplete suggestions
+   and the "Search on Google" action disappear together. There's no
+   setting that keeps web search but drops its suggestions, which is
+   the option #5490 asks for.
 
 **Reproduction Evidence**
 
-- **Commit showing reproduction:** none. This is a code-level
-  reproduction at upstream commit
-  [ff03721](https://github.com/LawnchairLauncher/lawnchair/commit/ff037218d4769e362d77b3d7a8db01d63b4eead4),
-  with no commit of my own yet.
-- **Screenshots/logs:** output of steps 2-4 at that commit:
+- **Commit showing reproduction:** none of my own. I built and ran
+  upstream commit
+  [ff03721](https://github.com/LawnchairLauncher/lawnchair/commit/ff037218d4769e362d77b3d7a8db01d63b4eead4)
+  unchanged.
+- **Screenshots/logs:** six emulator screenshots, kept locally with my
+  repro report: suggestions on, the Search bar settings, the Web
+  suggestions page, the slider at its floor of 2, the switch off, and
+  the same search with nothing from the web. The installed build reports
+  `versionName=16.Dev.(ff03721)`. The code behind it, at the same commit:
 
   ```
-  1021:    <string name="search_pref_result_web_title">Web suggestions</string>
-
   lawnchair/src/app/lawnchair/preferences/PreferenceManager.kt:162:    val searchResultStartPageSuggestion = BoolPref("pref_searchResultStartPageSuggestion", true, recreate)
   lawnchair/src/app/lawnchair/qsb/providers/StartpageEU.kt:21:        val useWebSuggestions = prefs.searchResultStartPageSuggestion.get()
   lawnchair/src/app/lawnchair/search/algorithms/engine/provider/web/WebSuggestionProvider.kt:28:        if (query.isBlank() || !prefs.searchResultStartPageSuggestion.get()) {
@@ -233,43 +249,44 @@ is still to do (see My findings).
   lawnchair/src/app/lawnchair/ui/preferences/components/search/DrawerSearchPreferences.kt:160:        adapter = prefs.searchResultStartPageSuggestion.getAdapter(),
   lawnchair/src/app/lawnchair/ui/preferences/components/search/SearchProviderPreference.kt:152:            SearchProviderId.WEB -> it.searchResultStartPageSuggestion
 
-  116:                valueRange = 2..10,
-  182:                valueRange = 2..10,
-  200:                        valueRange = 500..5000,
+  SearchProviderPreference.kt:182:                valueRange = 2..10,
   ```
 
-  (116 is the contacts slider, 182 is "Maximum number of suggestions",
-  and 200 is the suggestion delay in ms.) Permalinks:
+  Permalinks:
   [LawnchairLocalSearchAlgorithm.kt#L151](https://github.com/LawnchairLauncher/lawnchair/blob/ff037218d4769e362d77b3d7a8db01d63b4eead4/lawnchair/src/app/lawnchair/search/algorithms/LawnchairLocalSearchAlgorithm.kt#L151),
   [WebSuggestionProvider.kt#L28](https://github.com/LawnchairLauncher/lawnchair/blob/ff037218d4769e362d77b3d7a8db01d63b4eead4/lawnchair/src/app/lawnchair/search/algorithms/engine/provider/web/WebSuggestionProvider.kt#L28),
   [SearchProviderPreference.kt#L182](https://github.com/LawnchairLauncher/lawnchair/blob/ff037218d4769e362d77b3d7a8db01d63b4eead4/lawnchair/src/app/lawnchair/ui/preferences/components/search/SearchProviderPreference.kt#L182)
-- **My findings:** the feature is still missing on `16-dev` today, and
-  the cause is one preference doing two jobs. `StartpageEU.kt:21`
-  reads the same preference, so the fix has to decide whether that
-  provider follows the new toggle too. I haven't watched this happen
-  in the app yet. Building `lawnWithQuickstepGithubDebug` and checking
-  it on an emulator is my next step. I also asked the maintainers in my
-  claim whether the new option should only turn off the autocomplete
-  suggestions and keep the web search action.
+- **My findings:** what I saw on the device matches the code. Both
+  switches write one boolean, `pref_searchResultStartPageSuggestion`,
+  and it gates both the "Search on Google" action (line 151) and the
+  network autocomplete (line 28). That's why they disappeared together.
+  The count slider's `2..10` range is the floor I hit. `StartpageEU.kt:21`
+  reads the same boolean, so the fix has to decide whether that provider
+  follows the new option too. I've only tested on an emulator with
+  Google as the provider. My claim asked the maintainers whether the
+  new option should turn off only the suggestions and keep web search,
+  and there's no answer yet.
 
 **Toolkit**
 
 - Tool: repro-check with the new wild scope
-  (`repro-check-scope-wild.md`), run on my claim alone and then on my
-  claim plus repro report together
-- What it produced: accept both times. On the combined package it
-  re-ran my greps at the pinned commit, confirmed all six
-  `searchResultStartPageSuggestion` hits were complete, and passed every
-  check, including "Honest outcome", because the report says it read
-  the code rather than ran the app.
-- Difficulties: it caught a real problem anyway. My Step 4 output block
-  showed one `valueRange` line when the command prints three, and the
-  line I left out (the delay slider) made my "only other control"
-  sentence wrong. A trimmed excerpt labeled as command output is still
-  not what the command printed.
-- What changed: I pasted the full three-line output, said what each
-  line is, narrowed the sentence to "the only count control", and moved
-  the code-reading-not-device note to the top of the report.
+  (`repro-check-scope-wild.md`), run three times: on my claim alone, on
+  claim plus a code-only repro, then on claim plus the device repro
+- What it produced: accept all three times. On the final package it
+  re-checked every file:line at the pinned commit, confirmed it is the
+  head of `16-dev`, and compared each screenshot against the step it
+  illustrates.
+- Difficulties: on the code-only run it caught that I'd trimmed a
+  three-line grep output to one line, and the line I dropped made one
+  of my sentences wrong. On the last run it pointed out that its
+  "Behavior matches the issue" check is written for bugs ("same error,
+  same crash"), so it had to read a feature request's "symptom" as the
+  missing option.
+- What changed: I pasted the full grep output and fixed the sentence.
+  Then I replaced the code-only caveat with the device run instead of
+  posting a repro I hadn't watched. I'd patch the rubric so "Behavior
+  matches the issue" also covers feature requests (the gap the request
+  names, at the place it names).
 
 ---
 
