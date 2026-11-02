@@ -557,9 +557,8 @@ three CI checks with their results, what I didn't test, and an "AI use" paragrap
 - Difficulties: the script crashed after the PASS line with a `UnicodeEncodeError`
   printing the summary on Windows. My first try at opening the PR through a
   non-interactive `claude` session didn't run the command at all: the permission rule I
-  passed didn't match, and the session tried to edit `pr_draft.md` instead (blocked). My
-  default branch name in the gate also had to be `--base 16-dev`, since Lawnchair has no
-  `main`.
+  passed didn't match, and the session tried to edit `pr_draft.md` instead (blocked). I
+  also had to pass `--base 16-dev`, since Lawnchair takes PRs on `16-dev`, not `main`.
 - What changed: I confirmed the pass in `gate-log.md` instead of re-running. I re-ran the
   PR command with plain Bash permission and an explicit "don't edit files", then checked
   on GitHub that the PR went to LawnchairLauncher/lawnchair, not my fork, with the four
