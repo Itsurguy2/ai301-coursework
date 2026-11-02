@@ -157,26 +157,47 @@ Claim comment: https://github.com/LawnchairLauncher/lawnchair/issues/5490#issuec
 
 **Problem Description**
 
-[In your own words, what is broken or missing?]
+In Lawnchair's app drawer search, "Web suggestions" is one switch that controls two
+different things: the autocomplete suggestions Lawnchair fetches from the search
+provider (Google by default), and the "Search on Google" action that opens a web search
+for what you typed. There's no way to keep the web search action while turning off the
+suggestions, which is what the issue asks for.
 
 **Expected Behavior**
 
-[What should happen?]
+A user can turn off just the autocomplete suggestions and keep web search. With
+suggestions off, searching in the drawer shows "Search on Google" but no "From the web"
+suggestion rows. Users who change nothing see exactly what they see today.
 
 **Current Behavior**
 
-[What actually happens?]
+Searching `weather` with "Web suggestions" on shows three Google suggestions and "Search
+on Google". Turning the switch off removes both. The only other control, "Maximum number
+of suggestions", stops at 2, so it can't hide them. I saw this on an emulator build of
+`16-dev` at `ff03721`.
 
 **Affected Components**
 
-[Which parts of the codebase are involved?]
+- `lawnchair/src/app/lawnchair/preferences/PreferenceManager.kt:162`: the shared boolean
+  `pref_searchResultStartPageSuggestion`.
+- `search/algorithms/LawnchairLocalSearchAlgorithm.kt` (`generateActionResults()`, line
+  151): adds the web search action.
+- `search/algorithms/engine/provider/web/WebSuggestionProvider.kt` (`search()`, line 28):
+  fetches the suggestions.
+- `ui/preferences/components/search/SearchProviderPreference.kt` and
+  `DrawerSearchPreferences.kt`: the settings UI that writes the boolean.
+- `preferences2/PreferenceManager2.kt`: where new settings belong.
 
 **Toolkit**
 
-- Tool:
-- What it produced:
-- Difficulties:
-- What changed:
+- Tool: Claude Code reading the code at the pinned commit, plus my repo memory file
+  (`CLAUDE.local.md`), which already listed the subsystem's files from the unit 6 repro
+- What it produced: the list of every place that reads the shared boolean, and the
+  detail that the count slider's range starts at 2, both of which I then saw on the emulator
+- Difficulties: the issue body is two sentences and names no code. "Search suggestions"
+  vs "web suggestions" was ambiguous until I saw both on the device.
+- What changed: I asked the maintainers which reading they meant in my claim. With no
+  answer yet, I wrote the issue up the way its own wording reads and flagged it as open.
 
 ---
 
@@ -294,29 +315,101 @@ swipes didn't open the app drawer, but a fast fling did.
 
 **Analysis**
 
-[Your analysis of the root cause: what is causing the issue, traced
-to the files and functions involved.]
+The "Web suggestions" switch in Settings → Search bar → App drawer, and the main switch
+on its detail page, both write one legacy boolean: `pref_searchResultStartPageSuggestion`
+(`PreferenceManager.searchResultStartPageSuggestion`, `PreferenceManager.kt:162`,
+written at `DrawerSearchPreferences.kt:160` and `SearchProviderPreference.kt:152`).
+That one boolean controls two different results:
+
+- `LawnchairLocalSearchAlgorithm.generateActionResults()` (line 151) adds the
+  "Search on <provider>" action (`SearchResult.Action.WebSearch`) only when it's true.
+- `WebSuggestionProvider.search()` (line 28) returns an empty list when it's false.
+  Otherwise it calls the provider's `getSuggestions(query)` over the network, which
+  produces the autocomplete rows under "From the web".
+
+Nothing else gates the autocomplete rows. The only related controls on the Web page
+are "Maximum number of suggestions" (`valueRange = 2..10`, line 182) and the delay
+(500..5000 ms). So no setting keeps web search while hiding its suggestions. On an
+emulator build of `ff03721`, turning the switch off removed both the suggestions and the
+"Search on Google" action together.
 
 **Proposed Solution**
 
-[High-level description of your fix approach, and what you are
-deliberately NOT changing.]
+Add one new boolean setting, "Search suggestions", on the Web suggestions page. It
+defaults to on, so nothing changes for existing users. When it's off, Lawnchair skips the
+autocomplete request and shows no suggestion rows, but the "Search on <provider>" action
+stays as long as "Web suggestions" itself is on.
+
+- The new key goes in `PreferenceManager2` (DataStore), because the developer docs say
+  that's "the required location for all new settings" and to avoid adding keys to the
+  legacy `PreferenceManager`.
+- It's checked in `WebSuggestionProvider.search()` before `getSuggestions(query)` is
+  called, the same way the existing switch is checked at line 28. So turning it off
+  should skip the request, not just hide the rows. That comes from reading the code.
+  Step 5 checks the rows on a device, but I won't capture network traffic.
+
+What I will not change:
+
+- The existing `pref_searchResultStartPageSuggestion` key, its default, or what it does.
+  It still turns all web results off.
+- `LawnchairLocalSearchAlgorithm` (the web search action), `StartpageEU.kt` (the dock
+  bar's Startpage behavior reads the old switch and keeps doing so), the search
+  providers, and the two existing sliders.
+- Translations. I'll only add English strings in `lawnchair/res/values/strings.xml`,
+  because the others come through Crowdin.
+
+Open question: my claim asked the maintainers whether the option should turn off only
+the suggestions and keep the web search action. There's no answer yet. This plan
+follows the issue's wording ("web suggestions enabled but with search suggestions
+disabled"), and I'll say so in the PR so they can redirect it.
 
 **Implementation Plan**
 
-1. [Modify file X to do Y]
-2. [Add or change Z]
-3. [Update tests]
+1. `lawnchair/src/app/lawnchair/preferences2/PreferenceManager2.kt`: add
+   `showWebSearchSuggestions = preference(key = booleanPreferencesKey(name = "show_web_search_suggestions"), defaultValue = true)`
+   next to the other web suggestion preferences.
+2. `lawnchair/src/app/lawnchair/search/algorithms/engine/provider/web/WebSuggestionProvider.kt`:
+   in `search()`, also return the empty flow when
+   `prefs2.showWebSearchSuggestions.firstCached()` is false, before any network request.
+3. `lawnchair/src/app/lawnchair/ui/preferences/components/search/SearchProviderPreference.kt`:
+   in the `SearchProviderId.WEB` branch, add a `SwitchPreference` bound to
+   `prefs2.showWebSearchSuggestions.getAdapter()`, above the delay slider.
+4. `lawnchair/res/values/strings.xml`: add `web_search_suggestions_label` ("Search
+   suggestions") and `web_search_suggestions_description`, named per the coding
+   standards' `$1_label` / `$1_description` format.
+5. Verify. There's no Gradle unit-test source set for this code (`tests/` is AOSP's
+   Soong-only suite), so I can't add a unit test. Instead:
+   - Run the manifest checks: `spotlessCheck`, `assembleLawnWithQuickstepGithubDebug`,
+     and `assembleLawnWithQuickstepPlayDebug`.
+   - Re-run the device reproduction on the branch build: with the new switch off, the
+     search shows "Search on Google" and no suggestion rows. With it on (the default),
+     the output matches the before screenshots.
+   - Turn "Web suggestions" off and check that everything web is still hidden.
+   - Not checked: network traffic (that the request is skipped comes from reading the
+     code), providers other than Google, and physical phones.
 
-[Record deviations here as they happen: what changed mid-build and
-why. A recorded deviation is honest work; silent drift is not.]
+Commits follow `type(scope): subject`, for example `feat(search): add toggle for web
+search suggestions`. The branch is `feat/5490-web-search-suggestions-toggle`, and the PR
+targets `16-dev`.
+
+Deviations: none yet.
 
 **Toolkit**
 
-- Tool:
-- What it produced:
-- Difficulties:
-- What changed:
+- Tool: plan-check, with the wild scope, run on `plan.md` and a draft plan comment
+  (`plan-comment.md`): `plan-check: grade my plan in plan.md and draft comment in plan-comment.md for issue <url>`
+- What it produced: accept on both runs. It checked every file and line the plan names
+  against the source (for example that `prefs2` and `firstCached` are already imported
+  in `WebSuggestionProvider.kt`, and that `play` is a real build flavor).
+- Difficulties: the first run caught two honesty gaps, not code ones. The plan said
+  turning the option off "stops the network call", which nothing in my testing would
+  observe. And my comment promised to change the plan "before opening a PR", which I
+  can't keep with the maintainers silent. It also noted that its procedure expects a
+  posted repro comment, and wild repos don't get one under the course's rules.
+- What changed: I marked the network claim as coming from reading the code and listed
+  what I won't check. I added an "unchecked" line to the comment and rewrote the
+  promise as "tell me and I'll change it". The second run passed every check with no
+  open notes on the plan.
 
 ---
 
