@@ -96,10 +96,15 @@ while printing its summary (Windows' `cp1252` console can't print `→`). I chec
 `gate-log.md` before trusting the pass, saw it was recorded with fingerprints before the
 crash, and the hook honored it when the PR opened four minutes later.
 
-**Unit 8: [one line on the tool work]**
+**Unit 8: Installed the PR monitor and wrote a playbook from five real Lawnchair PRs, and it drafted "don't send"**
 
-[2-4 sentences: the PR-monitor and your playbook. What it read, what it
-drafted, what you did with the draft.]
+For my staleness threshold I measured five recent merged PRs from outside contributors
+(#7499, #7500, #7482, #7457, #7412). They waited 0.8, 1.3, 3.0, 12.0, and 19.6 days for a
+maintainer's first response, so my first-review nudge waits 21 quiet days. What fell
+short: on day 8, `--state` labeled my PR "FEEDBACK-IN", because CodeRabbit's
+"No actionable comments" summary counts as a comment. I added a playbook rule that bot
+summaries get no reply. With that rule, the full run drafted a no-send move ("8 of 21
+days, keep waiting"), and I posted nothing.
 
 ---
 
@@ -539,8 +544,12 @@ three CI checks with their results, what I didn't test, and an "AI use" paragrap
 
 **Maintainer Feedback:**
 
-- 2026-11-02: none yet. CI hasn't run, which is normal for a first-time contributor until
-  a maintainer approves the workflows.
+- 2026-11-02: CodeRabbit (bot) posted a summary: "No actionable comments were generated
+  in the recent review", estimated review effort "2 (Simple) | ~8 minutes", and
+  suggested reviewer `superdragonxd`. No reply needed.
+- 2026-11-10: no human review yet, 8 days quiet. GitHub reports the PR as MERGEABLE
+  (blocked only on review). Lawnchair's recent outside PRs waited 1 to 20 days for a first
+  response, so this is normal. My playbook holds off on a nudge until 21 quiet days.
 
 **Status:** Awaiting review
 
@@ -571,25 +580,57 @@ three CI checks with their results, what I didn't test, and an "AI use" paragrap
 
 **Technical Skills Gained**
 
-[What you learned technically, named concretely.]
+- Reading Lawnchair's two preference systems: the legacy `PreferenceManager`
+  (`SharedPreferences`, `BoolPref`) and `PreferenceManager2` (Preferences DataStore,
+  `preference(key = booleanPreferencesKey(...))`). Also how settings screens bind to them
+  in Jetpack Compose through `.getAdapter()`, and how a search provider returns a `Flow`.
+- Building a large AOSP-derived Android app from the command line on Windows:
+  installing the SDK with `sdkmanager`, matching `build.gradle`'s `compileSdk` and
+  `buildToolsVersion`, Gradle variants (`lawnWithQuickstepGithubDebug`), and `spotlessCheck`.
+- Testing an Android app without Android Studio's UI: creating an AVD, `adb install`,
+  `cmd package set-home-activity`, scripted input, `uiautomator dump`, `screencap`, and
+  reading an ANR's reason in `logcat`.
+- Working a fork against an upstream repo: `upstream` remote, a feature branch on a
+  non-`main` base (`16-dev`), `gh repo set-default` so the PR opens upstream, and
+  `.git/info/exclude` to keep my working files out of the diff.
 
 **Challenges Overcome**
 
-[What was hard and how you solved it; point at the real events, the
-Toolkit blocks above are full of them.]
+- **Ambiguous issue, silent maintainers.** "Search suggestions" vs "web suggestions"
+  only made sense once I saw both on a device. With no answer to my claim's question, I
+  built the reading the issue's own words support, made it default-on so nothing changes,
+  and said so in the PR (Understanding the Issue, Solution Approach).
+- **No toolchain at all.** I went from no JDK or SDK to a working build and emulator.
+  The steps that fought me were `sdkmanager.bat` splitting on `;` and a
+  `local.properties` path broken by backslashes (Reproduction Process).
+- **Windows vs the course tools.** The ship-gate runs rows through `cmd.exe`, and its
+  environment had no `JAVA_HOME`. It also crashed printing its summary after a PASS. I
+  rewrote the manifest rows, and I checked the gate log before trusting the pass (Unit 7,
+  Pull Request Toolkit).
+- **A freeze on the fixed build.** The first launch after wiping data showed "isn't
+  responding". I read the ANR reason, saw it was during startup and before any search,
+  confirmed it didn't come back, and wrote it into my evidence instead of leaving it out
+  (Testing Strategy).
 
 **What I'd Do Differently Next Time**
 
-[Reflection on your process.]
+- Set up the build and emulator before claiming. I promised a device reproduction in
+  my claim before I had a JDK, and spent the week catching up to that promise.
+- Ask the design question in a form that's easy to answer with one word (for example,
+  "Keep Search on Google when suggestions are off: yes/no?"). That might have gotten a
+  maintainer answer before I built.
+- Check the screen after each emulator step from the start, instead of chaining taps
+  blind and redoing them when one landed on onboarding.
+- Set `PYTHONIOENCODING=utf-8` up front on Windows. It caused three separate failures
+  (ship-gate summary, a `gh` reader script, and console output) before I made it a habit.
 
 ---
 
 ## Resources Used
 
-[What actually helped, not a reading list. List things this story
-already shows you using: the doc you followed to set the environment
-up, the thread that explained the bug, the person who answered you.
-One real entry beats ten plausible ones.]
-
-- [Link to documentation that helped]
-- [Discussion, issue, or post that helped]
+- [Lawnchair developer docs: Get started](https://docs.lawnchair.app/developers/introduction/get-started): the `--recursive` clone, Android Studio Preview, and the `lawnWithQuickstepGithubDebug` variant.
+- [Lawnchair developer docs: Preferences](https://docs.lawnchair.app/developers/concepts/preferences): "PreferenceManager2 ... is the required location for all new settings", which decided where my new key went.
+- [Lawnchair development workflow](https://docs.lawnchair.app/developers/standards/development-workflow) and [coding standards](https://docs.lawnchair.app/developers/standards/coding-standards): the `16-dev` PR target, the `type(scope): subject` commits, and the `$1_label` / `$1_description` string names.
+- [`.github/workflows/ci.yml`](https://github.com/LawnchairLauncher/lawnchair/blob/16-dev/.github/workflows/ci.yml): the exact checks CI runs on PRs, which became my ship manifest.
+- [Issue #5490](https://github.com/LawnchairLauncher/lawnchair/issues/5490): the settings path in its Examples section is how I found the screen to reproduce on.
+- Five merged Lawnchair PRs ([#7499](https://github.com/LawnchairLauncher/lawnchair/pull/7499), [#7500](https://github.com/LawnchairLauncher/lawnchair/pull/7500), [#7482](https://github.com/LawnchairLauncher/lawnchair/pull/7482), [#7457](https://github.com/LawnchairLauncher/lawnchair/pull/7457), [#7412](https://github.com/LawnchairLauncher/lawnchair/pull/7412)): their response times set my playbook's staleness thresholds.
