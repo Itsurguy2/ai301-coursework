@@ -3,15 +3,18 @@
 ## Overview
 
 [Lawnchair](https://github.com/LawnchairLauncher/lawnchair) is an open source Android
-home-screen app (a launcher). In its app drawer search, one "Web suggestions" switch
-controls two different things: the autocomplete suggestions fetched from the search
-provider, and the "Search on Google" action. You can't keep one without the other, which
-is what [issue #5490](https://github.com/LawnchairLauncher/lawnchair/issues/5490) asks to
-change. I added a separate "Search suggestions" switch, on by default, in 4 files and 16
-added lines. My tooling contribution for this stage was the PR monitor: I wrote its
-playbook, including the 21-day nudge threshold and a rule that bot comments aren't
-feedback. [PR #7477](https://github.com/LawnchairLauncher/lawnchair/pull/7477) is open
-and waiting for its first human review.
+home-screen app, also called a launcher. The problem I worked on was in its app drawer
+search. A single "Web suggestions" switch controls two separate features: the
+autocomplete suggestions that come from the search provider, and the "Search on Google"
+button. If you turn the switch off, you lose both, and there's no way to keep web search
+without the suggestions. [Issue #5490](https://github.com/LawnchairLauncher/lawnchair/issues/5490)
+asks for exactly that option. My fix adds a separate "Search suggestions" switch that is
+on by default, so nothing changes for anyone who leaves it alone. The whole change is 16
+added lines across 4 files. For my tooling, I built a PR monitor that tracks the pull
+request after it opens. I wrote its playbook, and it has two rules that matter here: wait
+21 quiet days before nudging the maintainers, and don't count bot comments as feedback.
+Right now [PR #7477](https://github.com/LawnchairLauncher/lawnchair/pull/7477) is open
+and waiting for its first review from a maintainer.
 
 ## What happened
 
