@@ -9,9 +9,9 @@ search provider, and the "Search on Google" button. Turning it off removes both,
 there's no way to keep web search without the suggestions.
 [Issue #5490](https://github.com/LawnchairLauncher/lawnchair/issues/5490) asks for that
 option. My fix adds a separate "Search suggestions" switch that is on by default, so
-nothing changes for anyone who leaves it alone. The change is 16 added lines across 4
-files. For my tooling, I built a PR monitor that tracks the pull request after it opens. I
-wrote its playbook, which has two rules that matter here: wait 21 quiet days before
+nothing changes by default. The change is 16 added lines across 4
+files. I also built a PR monitor that tracks the pull request after it opens, and wrote its
+playbook, with two rules that matter here: wait 21 quiet days before
 nudging the maintainers, and don't count bot comments as feedback.
 [PR #7477](https://github.com/LawnchairLauncher/lawnchair/pull/7477) is open and waiting
 for its first review from a maintainer.
@@ -22,8 +22,7 @@ for its first review from a maintainer.
 
 I built a scout that searches GitHub and grades issues against a rubric. Its first scan
 graded 5 issues and accepted none, because every one already had a pull request linked to
-it. My `--no-assignee` filter did nothing in repos that never assign issues, so I added
-`-linked:pr` to every query to skip issues that already have a PR. I also stopped relying
+it. I added `-linked:pr` to every query to skip those. I also stopped relying
 on the scout's search and used it only as a grader on hand-picked issues. I screened 18
 with quick `gh` checks, graded the 4 that were left, and #5490 ranked first on fit. The
 scout rated it "moderate", because the issue names the setting's place in the app but not
@@ -31,12 +30,11 @@ in the code.
 
 ### 2. Reproducing it
 
-Before changing anything, I wanted to see the problem myself. I built commit `ff03721` on
+I built commit `ff03721` on
 `16-dev`, the branch Lawnchair takes pull requests on, and pinned it so my before and
 after would compare the same code. On an Android 16 emulator with default settings, I
 searched `weather` in the app drawer and got three Google suggestions and a "Search on
-Google" button. With "Web suggestions" off, both disappeared together. Lowering "Maximum
-number of suggestions" didn't help either, because the slider stops at 2.
+Google" button. With "Web suggestions" off, both disappeared together.
 
 The code explained why. One setting is read in both places:
 
@@ -54,9 +52,8 @@ separate setting.
 
 Lawnchair's [preferences docs](https://docs.lawnchair.app/developers/concepts/preferences)
 call `PreferenceManager2` "the required location for all new settings", so the new setting
-went there instead of the legacy `PreferenceManager`. Before building, I ran my plan
-through a checker I wrote that compares each claim against the code and my evidence. It
-caught one: I'd written that turning the option off "stops the network call", but nothing
+went there instead of the legacy `PreferenceManager`. A plan checker I wrote,
+which compares each claim against the code and my evidence, caught one claim: I'd written that turning the option off "stops the network call", but nothing
 in my testing would show that. I rewrote it to say the claim comes from reading the code,
 and listed it as untested.
 
@@ -77,9 +74,8 @@ switch and two English strings. This is the core change in `WebSuggestionProvide
          val provider = prefs2.webSuggestionProvider.firstCached()
 ```
 
-The new check comes before the provider is asked for anything. Lawnchair has no Gradle
-unit tests for this code, so I couldn't write one. Instead I re-ran the reproduction on
-both builds, with app data cleared:
+There are no Gradle unit
+tests for this code, so I re-ran the reproduction on both builds instead:
 
 | Setting | Before (`ff03721`) | After (`e5d0aa0`) |
 |---|---|---|
@@ -91,9 +87,9 @@ The middle row proves the fix. The other two show nothing else changed.
 
 ### 5. Opening the PR
 
-Before the PR could open, a gate I set up had to pass. It runs three of Lawnchair's own CI
-checks (`spotlessCheck` and two debug builds) plus 8 checks of my own, such as whether the
-description matches the diff. Everything passed, but then the script crashed while
+Before the PR opened, a gate I set up ran three of Lawnchair's own CI
+checks (`spotlessCheck` and two debug builds) plus 8 of my own, such as whether the
+description matches the diff. All passed, then the script crashed while
 printing its summary, because the Windows console can't print `→`. Before trusting the
 pass, I checked the gate's log and confirmed it had been recorded before the crash.
 
@@ -104,7 +100,7 @@ To set the nudge threshold, I measured five recent merged PRs from outside contr
 first response, so the playbook waits 21 quiet days, just past the slowest.
 
 On day 8, the monitor labeled my PR `FEEDBACK-IN`. The only "feedback" was CodeRabbit's
-bot summary: "No actionable comments were generated in the recent review." I added a rule
+bot summary saying it had no actionable comments. I added a rule
 to the playbook:
 
 > **TODO: paste the bot-comment rule exactly as written in the playbook.**
@@ -125,12 +121,12 @@ it's reviewed, and the playbook's first nudge is due on 2026-11-23.
 
 ## Limitations and what's next
 
-- **The design question is still open.** I asked the maintainers whether the option should
-  turn off only the suggestions and keep web search, and haven't had an answer, so the PR
-  builds the reading the issue's own wording supports. **Next:** ask it as a yes/no
+- **The design question is still open.** I asked the maintainers which behavior they
+  wanted and haven't had an answer, so the PR builds the reading the issue's wording
+  supports. **Next:** ask it as a yes/no
   question: "Keep Search on Google when suggestions are off: yes/no?"
-- **"The request is skipped" comes from reading the code.** I didn't capture network
-  traffic, and I tested only on an emulator with Google. **Next:** test on a physical
+- **"The request is skipped" comes from reading the code.** I tested only on an emulator
+  with Google, without capturing network traffic. **Next:** test on a physical
   phone and capture traffic with the switch off.
 - **The monitor only recognizes bots through a rule I wrote by hand.** A new bot could
   trigger the same false `FEEDBACK-IN`. **Next:** have it check the commenter's account
