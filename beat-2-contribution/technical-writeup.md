@@ -20,11 +20,16 @@ and waiting for its first review from a maintainer.
 
 ### 1. Finding the issue
 
-My issue scout's first scan graded 5 issues and accepted 0, because every one already had
-an open linked PR. In repos that never assign issues, `--no-assignee` filters nothing. I
-added `-linked:pr` to every query, then used the scout as a grader on hand-picked issues
-instead. I screened 18 with free `gh` checks and graded 4. #5490 ranked first on fit, with
-a "moderate" difficulty note: the issue names the settings screen but not the code.
+To find an issue, I built a scout that searches GitHub and grades what it finds against a
+rubric. Its first scan didn't go well. It graded 5 issues and accepted none of them,
+because every one already had someone's pull request linked to it. I had been filtering
+with `--no-assignee`, but that does nothing in repos that never assign issues to anyone.
+So I added `-linked:pr` to every search query, which skips issues that already have a PR.
+I also changed how I used the scout. Instead of relying on its search, I hand-picked
+issues and used it only as a grader. I screened 18 issues with quick `gh` checks, graded
+the 4 that were left, and #5490 ranked first on fit. The scout rated it "moderate"
+difficulty, because the issue says where the setting is in the app but not where it is
+in the code.
 
 ### 2. Reproducing it
 
