@@ -33,10 +33,19 @@ in the code.
 
 ### 2. Reproducing it
 
-I built the pinned commit `ff03721` on `16-dev` (`assembleLawnWithQuickstepGithubDebug`)
-and ran it on an Android 16 emulator (Pixel 7 profile). Searching `weather` showed three
-Google suggestions and "Search on Google". With the switch off, both disappeared together.
-The code shows why. One boolean is read in both places:
+Before changing anything, I wanted to see the problem for myself. I built commit `ff03721`
+on the `16-dev` branch, the branch Lawnchair takes pull requests on, and pinned that
+commit so my "before" and "after" would compare the same code. I ran the build on an
+Android 16 emulator using a Pixel 7 profile, left every setting at its default, and
+searched `weather` in the app drawer. With "Web suggestions" on, I got three suggestions
+from Google and a "Search on Google" button under them. Then I turned the switch off and
+ran the same search. The suggestions and the "Search on Google" button both disappeared
+at the same time. I also tried lowering "Maximum number of suggestions" to hide them, but
+the slider stops at 2, so there was no setting that kept web search without the
+suggestions.
+
+The code explained what I saw on the screen. One setting,
+`pref_searchResultStartPageSuggestion`, is read in both places:
 
 ```
 PreferenceManager.kt:162:    val searchResultStartPageSuggestion = BoolPref("pref_searchResultStartPageSuggestion", true, recreate)
@@ -44,7 +53,10 @@ WebSuggestionProvider.kt:28:        if (query.isBlank() || !prefs.searchResultSt
 LawnchairLocalSearchAlgorithm.kt:151:        if (prefs.searchResultStartPageSuggestion.get()) {
 ```
 
-Line 151 adds the web search action. Line 28 decides whether to fetch suggestions.
+Line 162 defines the setting, and it's on by default. Line 28 decides whether to fetch
+suggestions at all, and line 151 decides whether to add the "Search on Google" button.
+Both check the same value, so one switch could never turn off only one of them. That
+told me the fix needed a second, separate setting.
 
 ### 3. Planning
 
