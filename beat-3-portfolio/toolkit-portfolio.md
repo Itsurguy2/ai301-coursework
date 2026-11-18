@@ -117,6 +117,21 @@ LawnchairLocalSearchAlgorithm.kt:151:        if (prefs.searchResultStartPageSugg
 | Web suggestions on, new Search suggestions off | not possible | "Search on Google" only, no suggestions |
 | Web suggestions off | nothing from the web | nothing from the web (unchanged) |
 
+**See it on the emulator** (Android 16, Pixel 7 profile, searching `weather`):
+
+<table>
+<tr>
+<th>1. Before: one switch controls both</th>
+<th>2. After: the new "Search suggestions" switch</th>
+<th>3. After: suggestions off, "Search on Google" stays</th>
+</tr>
+<tr>
+<td><img src="images/before-one-switch.png" width="240" alt="Before the fix: three Google suggestions and a Search on Google button"></td>
+<td><img src="images/after-new-switch.png" width="240" alt="Web suggestions settings page with the new Search suggestions switch"></td>
+<td><img src="images/after-suggestions-off.png" width="240" alt="After the fix: only the Search on Google button, no suggestions"></td>
+</tr>
+</table>
+
 **Where it stands (2026-11-18):** PR #7477 is open and mergeable, with no maintainer review yet (16 quiet days). Following the playbook, the first nudge comes after 21 quiet days, on 2026-11-23.
 
 ---
